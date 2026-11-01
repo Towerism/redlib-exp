@@ -1,0 +1,70 @@
+#!/bin/sh
+# Starts a throwaway Redlib container that may only reach Reddit through the
+# session in the cookie file, loads a subreddit page and removes the container.
+# Usage: scripts/smoke-test.sh <docker|podman> <image> <cookie-file> <port>
+set -eu
+
+docker=$1 image=$2 cookie=$3 port=$4
+name=redlib-test-$$
+url=http://127.0.0.1:$port
+page=$(mktemp)
+
+cleanup() { "$docker" rm -f "$name" >/dev/null 2>&1 || true; rm -f "$page"; }
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+started=
+fail() {
+  echo "FAIL: $*" >&2
+  [ -n "$started" ] || exit 1
+  echo "--- container log ---" >&2
+  "$docker" logs "$name" 2>&1 | sed -E 's/eyJ[A-Za-z0-9._-]+/<redacted>/g' >&2 || true
+  exit 1
+}
+
+# The image runs as uid 65532, which cannot read a chmod 600 cookie file.
+# Run as the current user instead; rootless Podman (also when installed as
+# "docker") needs keep-id so that uid maps to you on the host.
+userns=
+"$docker" --version 2>/dev/null | grep -qi podman && userns=--userns=keep-id
+
+dir=$(CDPATH= cd -- "$(dirname -- "$cookie")" && pwd)
+mount="$dir/$(basename -- "$cookie"):/run/secrets/reddit_cookie:ro,z"
+
+# Session-only backend, no scrape fallback, no stale cache: the page loads only
+# if Reddit accepts the session.
+"$docker" run -d --name "$name" ${userns:+"$userns"} --user "$(id -u):$(id -g)" \
+  -p "127.0.0.1:$port:8080" \
+  -v "$mount" \
+  -e REDLIB_REDDIT_COOKIE_FILE=/run/secrets/reddit_cookie \
+  -e REDLIB_ENDPOINTS=cookied-json \
+  -e REDLIB_ENABLE_SCRAPE_FALLBACK=off \
+  -e REDLIB_STALE_CACHE_MB=0 \
+  "$image" >/dev/null \
+  || fail "could not start the container (see the error above; if port $port is in use, run make test TEST_PORT=18081)."
+started=1
+
+i=0
+until curl -fsS --max-time 1 -o /dev/null "$url/info" 2>/dev/null; do
+  [ "$("$docker" inspect -f '{{.State.Running}}' "$name" 2>/dev/null)" = true ] \
+    || fail "the Redlib container stopped before it answered."
+  i=$((i + 1)); [ "$i" -lt 30 ] || fail "Redlib did not answer on $url."
+  sleep 0.5
+done
+echo "OK: Redlib is up on $url."
+
+# /info lists the cookied-json backend only when a session was read.
+curl -fsS --max-time 5 "$url/info" | grep -q 'cookied-json' \
+  || fail "Redlib did not load the session from $cookie (see the log below for the reason)."
+echo "OK: Redlib loaded the session."
+
+code=$(curl -s --max-time 60 -o "$page" -w '%{http_code}' "$url/r/linux") || code=000
+posts=$(grep -c 'class="post_title"' "$page" || true)
+if [ "$code" != 200 ] || [ "$posts" -eq 0 ]; then
+  reason=$(sed -n 's:.*<title>Error\: \([^<]*\)</title>.*:\1:p' "$page" | head -n 1)
+  fail "Reddit refused the session: /r/linux returned HTTP $code${reason:+ ($reason)}. Copy a fresh cookie (README.md, step 1); if a fresh cookie fails too, $image may have changed (see the log below)."
+fi
+echo "OK: /r/linux loaded $posts posts through your session."
+echo "PASS"
