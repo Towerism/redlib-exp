@@ -44,11 +44,10 @@ The session lasts about six months. Pressing "Log out" on reddit.com ends it at 
 Run this, paste the value when the cursor waits, then press `Enter` and `Ctrl+D`:
 
 ```sh
-( umask 077; { printf 'reddit_session='; cat; } > .cookie )
-chmod 600 .cookie
+( umask 077; rm -f .cookie; { printf 'reddit_session='; cat; } > .cookie )
 ```
 
-Pasting instead of typing the value into the command keeps it out of your shell history. `umask 077` and `chmod 600` make the file readable only by you, also when you overwrite an older `.cookie`. The finished file holds a single line:
+Pasting instead of typing the value into the command keeps it out of your shell history. `rm -f` removes any older `.cookie`, and `umask 077` creates the new one readable only by you (mode 600). The finished file holds a single line:
 
 ```
 reddit_session=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIi...
