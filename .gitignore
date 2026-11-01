@@ -1,3 +1,5 @@
 .env
 .cookie
 .omc/
+experiment/BREAK_LOUD
+experiment/BREAK_SILENT

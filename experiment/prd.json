@@ -1,0 +1,58 @@
+{
+  "project": "redlib-exp",
+  "branchName": "add-cookie-check",
+  "description": "Experiment: check that the Ralph feedback baseline gate (omc ralph verify) treats failures already present at baseline as noise (exit 0), and flags a failure that was not there at baseline (exit 1). The repo's make build and make test always fail (GNU make exits 2).",
+  "repoQualityClass": "prototype",
+  "feedbackCommands": [
+    "make build",
+    "make test",
+    "sh experiment/probe.sh"
+  ],
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Baseline records the always-failing Makefile targets",
+      "description": "omc ralph verify --write-baseline runs make build and make test and records both failures.",
+      "acceptanceCriteria": [
+        "make build exits 2 and make test exits 2 on a clean clone",
+        "omc ralph verify --write-baseline --session <id> exits 0 and writes .omc/state/sessions/<id>/feedback-baseline.json listing both commands as failing"
+      ],
+      "priority": 1,
+      "passes": false
+    },
+    {
+      "id": "US-002",
+      "title": "Gate passes on baseline-only failures and fails on a new one",
+      "description": "omc ralph verify judges against the baseline.",
+      "acceptanceCriteria": [
+        "With the tree unchanged, omc ralph verify --session <id> exits 0",
+        "After a feedback command that was passing at baseline starts failing with an error line on stdout/stderr, omc ralph verify --session <id> exits 1",
+        "A feedback command that starts failing with no output is reported clean (exit 0); this gap in omc 5.7.19 is reproduced by replicate.sh and documented in README.md"
+      ],
+      "priority": 2,
+      "passes": false,
+      "criterionAmendments": [
+        {
+          "kind": "replaced",
+          "original": "After a feedback command that was passing at baseline starts failing, omc ralph verify --session <id> exits 1",
+          "replacement": "After a feedback command that was passing at baseline starts failing with an error line on stdout/stderr, omc ralph verify --session <id> exits 1",
+          "reason": "omc 5.7.19 judges only output lines, not exit status, so a failure that prints nothing cannot be detected; the original criterion is false for silent failures",
+          "evidence": "Probe 'test ! -e experiment/BREAK' baselined with signatures [], then failed silently after touch experiment/BREAK: omc ralph verify printed 'clean vs baseline', exit 0. dist/cli/commands/ralph.js runFeedbackCommand only uses result.status for 126/127 (unrunnable); signatures = signatureLines(stdout+stderr).",
+          "authority": "2e88c6ed-fa86-4946-a91d-582efe14fedd",
+          "timestamp": "2026-11-01T17:31:04.132Z"
+        }
+      ]
+    },
+    {
+      "id": "US-003",
+      "title": "Someone else can replicate it from a clone",
+      "description": "The files used are committed, with a script and README that reproduce the run.",
+      "acceptanceCriteria": [
+        "experiment/replicate.sh, experiment/probe.sh, experiment/prd.json, Makefile and README.md are committed and pushed on the branch",
+        "In a fresh git clone of the branch, experiment/replicate.sh exits 0 and prints PASS for every check"
+      ],
+      "priority": 3,
+      "passes": false
+    }
+  ]
+}
