@@ -22,7 +22,7 @@ git checkout add-cookie-check
 ./experiment/replicate.sh
 ```
 
-It exits 0 and ends with `ALL CHECKS PASSED`. It creates a throwaway session under `.omc/state/sessions/replicate-*` and deletes it on exit.
+It prints 8 `PASS:` lines (the checks below, some split in two), exits 0 and ends with `ALL CHECKS PASSED`. It creates a throwaway session under `.omc/state/sessions/replicate-*` and deletes it on exit.
 
 ### What it does
 
