@@ -25,7 +25,8 @@ printf '%s' "$token" | grep -Eq '^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_
 # The middle part of the token is base64url JSON holding the expiry time "exp".
 payload=$(printf '%s' "$token" | cut -d. -f2 | tr '_-' '/+')
 case $(( ${#payload} % 4 )) in 2) payload="$payload==" ;; 3) payload="$payload=" ;; esac
-exp=$(printf '%s' "$payload" | { base64 -d 2>/dev/null || base64 -D 2>/dev/null; } | sed -n 's/.*"exp":[[:space:]]*\([0-9][0-9]*\).*/\1/p') || true
+json=$(printf '%s' "$payload" | base64 -d 2>/dev/null || printf '%s' "$payload" | base64 -D 2>/dev/null) || true
+exp=$(printf '%s' "$json" | sed -n 's/.*"exp":[[:space:]]*\([0-9][0-9]*\).*/\1/p') || true
 [ -n "$exp" ] && [ ${#exp} -le 12 ] || fail "could not read the expiry date from the token in $file; copy the cookie again."
 
 expires=$(date -u -d "@$exp" '+%Y-%m-%d %H:%M UTC' 2>/dev/null || date -u -r "$exp" '+%Y-%m-%d %H:%M UTC' 2>/dev/null) || expires="(unknown date)"

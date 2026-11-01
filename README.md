@@ -45,9 +45,10 @@ Run this, paste the value when the cursor waits, then press `Enter` and `Ctrl+D`
 
 ```sh
 ( umask 077; { printf 'reddit_session='; cat; } > .cookie )
+chmod 600 .cookie
 ```
 
-Pasting instead of typing the value into the command keeps it out of your shell history. `umask 077` creates the file readable only by you (mode 600). The finished file holds a single line:
+Pasting instead of typing the value into the command keeps it out of your shell history. `umask 077` and `chmod 600` make the file readable only by you, also when you overwrite an older `.cookie`. The finished file holds a single line:
 
 ```
 reddit_session=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIi...
@@ -111,7 +112,7 @@ What each part does:
 
 | Part | Why |
 |---|---|
-| `--user "$(id -u):$(id -g)"` | The image runs as uid 65532, which can't read your `chmod 600` `.cookie`. This runs Redlib as you instead. Rootless Podman also needs `--userns=keep-id`. |
+| `--user "$(id -u):$(id -g)"` | The image runs as uid 65532, which can't read your mode-600 `.cookie`. This runs Redlib as you instead. Rootless Podman also needs `--userns=keep-id`. |
 | `-p 127.0.0.1:8080:8080` | Only this computer can reach Redlib. Use `-p 8080:8080` to open it to your network, but anyone who reaches it browses through your Reddit account. |
 | `-v ...:/run/secrets/reddit_cookie:ro,z` | Mounts `.cookie` read-only. `z` lets SELinux systems (Fedora, RHEL) allow the mount and still lets `make test` read the same file; other systems ignore it. |
 | `-e REDLIB_REDDIT_COOKIE_FILE=...` | Tells Redlib to read the session from that file. This keeps the cookie out of `docker inspect` and your shell history. |
@@ -138,7 +139,7 @@ If you replace `.cookie` with a new session, run `docker restart redlib`. A sing
 | `could not read the expiry date` | The value is cut off or altered. Copy the `reddit_session` value again. |
 | `expired on ...` | Log in on reddit.com again and copy a new `reddit_session`. |
 | `could not start the container` | Read the Docker error above it. For example, if port 18080 is in use, run `make test TEST_PORT=18081`; if the Docker daemon isn't running, start it. |
-| `stopped right after starting` or `did not answer ... within 15 seconds` | Read the container log printed below the message. |
+| `stopped before it answered` or `did not answer` | Read the container log printed below the message. |
 | `Redlib did not load the session` | Read the container log printed below the message. `Permission denied` means the container user can't read `.cookie`: check that you own it, and if you use rootless Docker, use Podman with `DOCKER=podman` instead. |
 | `Reddit refused the session` | The session was logged out, expired early, or the account is banned. Copy a new cookie, from a new throwaway account if needed. |
 | `docker-image is missing or empty` | Restore it with `git checkout docker-image`. |
@@ -147,7 +148,7 @@ Settings for `make`:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `DOCKER` | `docker` | Container tool; `podman` also works. |
+| `DOCKER` | `docker` | Container command, a single word such as `docker` or `podman`. |
 | `COOKIE` | `.cookie` | Path to the cookie file. |
 | `TEST_PORT` | `18080` | Local port for the `make test` container. |
 

@@ -15,8 +15,10 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+started=
 fail() {
   echo "FAIL: $*" >&2
+  [ -n "$started" ] || exit 1
   echo "--- container log ---" >&2
   "$docker" logs "$name" 2>&1 | sed -E 's/eyJ[A-Za-z0-9._-]+/<redacted>/g' >&2 || true
   exit 1
@@ -42,12 +44,13 @@ mount="$dir/$(basename -- "$cookie"):/run/secrets/reddit_cookie:ro,z"
   -e REDLIB_STALE_CACHE_MB=0 \
   "$image" >/dev/null \
   || fail "could not start the container (see the error above; if port $port is in use, run make test TEST_PORT=18081)."
+started=1
 
 i=0
-until curl -fsS --max-time 5 -o /dev/null "$url/info" 2>/dev/null; do
+until curl -fsS --max-time 1 -o /dev/null "$url/info" 2>/dev/null; do
   [ "$("$docker" inspect -f '{{.State.Running}}' "$name" 2>/dev/null)" = true ] \
-    || fail "the Redlib container stopped right after starting."
-  i=$((i + 1)); [ "$i" -lt 30 ] || fail "Redlib did not answer on $url within 15 seconds."
+    || fail "the Redlib container stopped before it answered."
+  i=$((i + 1)); [ "$i" -lt 30 ] || fail "Redlib did not answer on $url."
   sleep 0.5
 done
 echo "OK: Redlib is up on $url."
