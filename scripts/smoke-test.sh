@@ -64,7 +64,7 @@ code=$(curl -s --max-time 60 -o "$page" -w '%{http_code}' "$url/r/linux") || cod
 posts=$(grep -c 'class="post_title"' "$page" || true)
 if [ "$code" != 200 ] || [ "$posts" -eq 0 ]; then
   reason=$(sed -n 's:.*<title>Error\: \([^<]*\)</title>.*:\1:p' "$page" | head -n 1)
-  fail "Reddit refused the session: /r/linux returned HTTP $code${reason:+ ($reason)}. Copy a fresh cookie (README.md, step 1)."
+  fail "Reddit refused the session: /r/linux returned HTTP $code${reason:+ ($reason)}. Copy a fresh cookie (README.md, step 1); if a fresh cookie fails too, $image may have changed (see the log below)."
 fi
 echo "OK: /r/linux loaded $posts posts through your session."
 echo "PASS"

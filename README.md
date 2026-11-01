@@ -61,7 +61,7 @@ reddit_session=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIi...
 make build
 ```
 
-This runs `docker pull ghcr.io/nachtalb/redlib:latest`.
+This runs `docker pull` on the image named in `docker-image`.
 
 ## 5. Test the cookie
 
@@ -91,7 +91,7 @@ docker run -d --name redlib \
   -p 127.0.0.1:8080:8080 \
   -v "$PWD/.cookie:/run/secrets/reddit_cookie:ro,z" \
   -e REDLIB_REDDIT_COOKIE_FILE=/run/secrets/reddit_cookie \
-  ghcr.io/nachtalb/redlib:latest
+  "$(cat docker-image)"
 ```
 
 With Podman, add `--userns=keep-id` and use `podman` instead of `docker`. This also applies if your `docker` command is Podman's wrapper (`docker --version` mentions Podman):
@@ -102,10 +102,10 @@ podman run -d --name redlib \
   -p 127.0.0.1:8080:8080 \
   -v "$PWD/.cookie:/run/secrets/reddit_cookie:ro,z" \
   -e REDLIB_REDDIT_COOKIE_FILE=/run/secrets/reddit_cookie \
-  ghcr.io/nachtalb/redlib:latest
+  "$(cat docker-image)"
 ```
 
-Then open http://localhost:8080. If port 8080 is already taken, `docker run` fails with `address already in use`; run `docker rm -f redlib` and start it again with another port, e.g. `-p 127.0.0.1:8081:8080`, then open http://localhost:8081.
+`"$(cat docker-image)"` uses the same image as `make build`. Then open http://localhost:8080. If port 8080 is already taken, `docker run` fails with `address already in use`; run `docker rm -f redlib` and start it again with another port, e.g. `-p 127.0.0.1:8081:8080`, then open http://localhost:8081.
 
 What each part does:
 
@@ -116,7 +116,7 @@ What each part does:
 | `-v ...:/run/secrets/reddit_cookie:ro,z` | Mounts `.cookie` read-only. `z` lets SELinux systems (Fedora, RHEL) allow the mount and still lets `make test` read the same file; other systems ignore it. |
 | `-e REDLIB_REDDIT_COOKIE_FILE=...` | Tells Redlib to read the session from that file. This keeps the cookie out of `docker inspect` and your shell history. |
 
-To confirm the session is in use, open http://localhost:8080/info: the backend list includes `cookied-json`.
+To confirm the session is in use, open http://localhost:8080/info: the backend list includes `cookied-json`. If the session dies later, Redlib keeps running without it and some pages stop loading; run `make test` to check the cookie.
 
 Stop and remove it:
 
@@ -140,7 +140,7 @@ If you replace `.cookie` with a new session, run `docker restart redlib`. A sing
 | `could not start the container` | Read the Docker error above it. For example, if port 18080 is in use, run `make test TEST_PORT=18081`; if the Docker daemon isn't running, start it. |
 | `stopped before it answered` or `did not answer` | Read the container log printed below the message. |
 | `Redlib did not load the session` | Read the container log printed below the message. `Permission denied` means the container user can't read `.cookie`: check that you own it, and if you use rootless Docker, use Podman with `DOCKER=podman` instead. |
-| `Reddit refused the session` | The session was logged out, expired early, or the account is banned. Copy a new cookie, from a new throwaway account if needed. |
+| `Reddit refused the session` | The session was logged out, expired early, or the account is banned. Copy a new cookie, from a new throwaway account if needed. If a fresh cookie also fails, the image may have changed how it reports pages; check the log below the message and the fork's [CONFIGURATION.md](https://github.com/Nachtalb/redlib/blob/main/CONFIGURATION.md). |
 | `docker-image is missing or empty` | Restore it with `git checkout docker-image`. |
 
 Settings for `make`:
